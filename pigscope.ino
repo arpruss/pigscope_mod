@@ -183,6 +183,7 @@ void setup()
   // Setup callbacks for SerialCommand commands
 
   TFT.begin();
+  TFT.continuousUpdate(false);
 
   for(unsigned i=0;i<sizeof(commands)/sizeof(*commands);i++)
     TFT.addButton(commands[i].c, commands[i].label);
@@ -212,6 +213,7 @@ void setup()
   clearTFT();
 //  showGraticule();
   showCredits(); // Honourable mentions ;¬)
+  TFT.update();
   delay(1000) ; //5000
   clearTFT();
   notTriggered = true;
@@ -241,10 +243,6 @@ bool processMessage() {
   return false;
 }
 
-void xloop() {
-    processMessage();
-}
-
 void loop()
 {
   processMessage();
@@ -265,7 +263,8 @@ void loop()
       takeSamples();
       
       //Blank  out previous plot
-      TFTSamplesClear(BEAM_OFF_COLOUR);
+      TFT.fillScreen(BEAM_OFF_COLOUR);
+//      TFTSamplesClear(BEAM_OFF_COLOUR);
 
       // Show the showGraticule
       showGraticule();
@@ -286,6 +285,9 @@ void loop()
     showTime();
 #endif    
   }
+
+  TFT.update();
+  
   // Wait before allowing a re-trigger
   if (retriggerDelay>0) 
     delay(retriggerDelay);
