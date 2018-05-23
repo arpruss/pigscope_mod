@@ -87,7 +87,7 @@ boolean notTriggered ;
 int32_t triggerValue = 2048; 
 
 int16_t retriggerDelay = 0;
-int8_t triggerType = 2; //0-both 1-negative 2-positive
+int8_t triggerType = 3; //0-both 1-negative 2-positive 3-continuous
 
 //Array for trigger points
 uint16_t triggerPoints[2];
@@ -143,7 +143,7 @@ struct {
   const char* label;
   void (*function)();
 } commands[] = {
-  { 's', "Serial", toggleSerial },                   // Turns serial sample output on/off
+//  { 's', "Serial", toggleSerial },                   // Turns serial sample output on/off
   { 'h', "Hold", toggleHold },                       // Turns triggering on/off
   { 't', "T-", decreaseTimebase },                // decrease Timebase by 10x
   { 'T', "T+", increaseTimebase },                // increase Timebase by 10x
@@ -151,7 +151,7 @@ struct {
   { 'Z', "Zoom+", increaseZoomFactor },              // increase Zoom
   { 'r', ">>", scrollRight },                      // start onscreen trace further right
   { 'l', "<<", scrollLeft },                      // start onscreen trae further left
-  { 'e', "Edge", incEdgeType },                     // increment the trigger edge type 0 1 2 0 1 2 etc
+  { 'e', "Edge", incEdgeType },                     // increment the trigger edge type 0 1 2 3 0 1 2 3 etc
   { 'y', "Y-", decreaseYposition },               // move trace Down
   { 'Y', "Y+", increaseYposition },               // move trace Up
   { 'g', "Trig-", decreaseTriggerPosition },         // move trigger position Down
@@ -217,22 +217,41 @@ void setup()
   notTriggered = true;
   showGraticule();
   showLabels();
-    digitalWrite(PB12,1);
+  digitalWrite(PB12,1);
+  
+  
+  clearTFT();
+  TFT.setCursor(0,10);
+}
+
+bool processMessage() {
+  if (TFT.readMessage(&msg) && msg.what == MESSAGE_BUTTON) {
+    if (msg.data.button == 'h') {
+      digitalWrite(PB12, 0);
+      delay(100);
+      digitalWrite(PB12, 1);
+      delay(100);
+    }
+    for(unsigned i=0;i<sizeof(commands)/sizeof(*commands);i++)
+      if (msg.data.button == commands[i].c) {
+        commands[i].function();
+        return true;
+      }
+  }
+  return false;
+}
+
+void xloop() {
+    processMessage();
 }
 
 void loop()
 {
-  if (TFT.readMessage(&msg) && msg.what == MESSAGE_BUTTON) {
-    for(unsigned i=0;i<sizeof(commands)/sizeof(*commands);i++)
-      if (msg.data.button == commands[i].c) {
-        commands[i].function();
-        break;
-      }
-  }
+  processMessage();
 
-  if (TFT.isTouchDown()) {
-    TFT.drawPixel(TFT.getTouchX(), TFT.getTouchY(), BEAM2_COLOUR);
-  }
+//  if (TFT.isTouchDown()) {
+//    TFT.drawPixel(TFT.getTouchX(), TFT.getTouchY(), BEAM2_COLOUR);
+//  }
 
   if ( !triggerHeld  )
   {
@@ -268,7 +287,8 @@ void loop()
 #endif    
   }
   // Wait before allowing a re-trigger
-  delay(retriggerDelay);
+  if (retriggerDelay>0) 
+    delay(retriggerDelay);
   // DEBUG: increment the sweepDelayFactor slowly to show the effect.
   // sweepDelayFactor ++;
 }
@@ -340,14 +360,18 @@ void trigger()
     case 2:
       triggerPositive() ;
       break;
-    default:
+    case 3:
       triggerBoth() ;
+      break;
+    case 4:
+      notTriggered = false;
       break;
   }
 }
 
 void triggerBoth()
 {
+  int count = 0;
   triggerPoints[0] = analogRead(analogInPin);
   while(notTriggered){
     triggerPoints[1] = analogRead(analogInPin);
@@ -356,10 +380,14 @@ void triggerBoth()
       notTriggered = false;
     }
     triggerPoints[0] = triggerPoints[1]; //analogRead(analogInPin);
+    count++;
+    if ((count % 1024 == 0) && processMessage())
+      return;
   }
 }
 
 void triggerPositive() {
+  int count = 0;
   triggerPoints[0] = analogRead(analogInPin);
   while(notTriggered){
     triggerPoints[1] = analogRead(analogInPin);
@@ -367,23 +395,30 @@ void triggerPositive() {
       notTriggered = false;
     }
     triggerPoints[0] = triggerPoints[1]; //analogRead(analogInPin);
+    count++;
+    if ((count % 1024 == 0) && processMessage())
+      return;
   }
 }
 
 void triggerNegative() {
+  int count = 0;
   triggerPoints[0] = analogRead(analogInPin);
   while(notTriggered){
     triggerPoints[1] = analogRead(analogInPin);
     if ((triggerPoints[1] < triggerValue) && (triggerPoints[0] > triggerValue) ){
       notTriggered = false;
     }
+    count++;
+    if ((count % 1024 == 0) && processMessage())
+      return;
     triggerPoints[0] = triggerPoints[1]; //analogRead(analogInPin);
   }
 }
 
 void incEdgeType() {
   triggerType += 1;
-  if (triggerType > 2)
+  if (triggerType > 3)
   {
     triggerType = 0;
   }
@@ -444,12 +479,23 @@ void takeSamples ()
 
 void TFTSamplesClear (uint16_t beamColour)
 {
-  TFT.thickness(65536*4);
+  TFT.thickness(65536*2);
+#if 0  
   for (signalX=1 ; signalX < myHeight - 2; signalX++)
   {
     //use saved data to improve speed
     TFT.drawLine (  signalX, dataPlot[signalX-1], signalX + 1, dataPlot[signalX] , beamColour) ;
   } 
+#endif 
+  
+  TFT.foreColor565(beamColour);
+  TFT.startPolyLine(myHeight-2); 
+  for (signalX=0 ; signalX < myHeight - 2; signalX++)
+  {
+    //use saved data to improve speed
+    TFT.addPolyLine(signalX + 1, dataPlot[signalX]) ;
+  } 
+
   TFT.thickness(65536);
 }
 
@@ -457,6 +503,7 @@ void TFTSamplesClear (uint16_t beamColour)
 void TFTSamples (uint16_t beamColour)
 {
   //calculate first sample
+#if 0
   signalY =  ((myHeight * dataPoints[0 * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100) + yPosition;
   dataPlot[0]=signalY * 99 / 100 + 1;
   
@@ -469,6 +516,18 @@ void TFTSamples (uint16_t beamColour)
     TFT.drawLine (  signalX, dataPlot[signalX-1], signalX + 1, dataPlot[signalX] , beamColour) ;
     signalY = signalY1;
   }
+#endif
+
+  TFT.foreColor565(beamColour);
+  TFT.startPolyLine(myHeight-2); 
+  for (signalX=0 ; signalX < myHeight - 2; signalX++)
+  {
+    // Scale our samples to fit our screen. Most scopes increase this in steps of 5,10,25,50,100 250,500,1000 etc
+    // Pick the nearest suitable samples for each of our myWidth screen resolution points
+    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100) + yPosition ;
+    dataPlot[signalX] = signalY1 * 99 / 100 + 1;
+    TFT.addPolyLine(signalX+1, dataPlot[signalX]) ;
+  } 
 }
 
 /*
@@ -496,8 +555,10 @@ void showLabels()
   TFT.print(" samples ");
 //  TFT.setCursor(10, 190);
 //  TFT.print(displayTime);
-  TFT.print(float (1000000 / float(displayTime)));
-  TFT.print(" fps    ");
+  if (displayTime>0) {
+    TFT.print(float (1000000 / float(displayTime)));
+    TFT.print(" fps    ");
+  }
   TFT.setTextSize(2);
   TFT.setCursor(10, 210);
   TFT.print("0.3");
@@ -543,7 +604,7 @@ void serialSamples ()
 
 void toggleHold()
 {
-  triggerHeld ^= 1 ;
+  triggerHeld = !triggerHeld ;
   //serial_debug.print("# ");
   //serial_debug.print(triggerHeld);
   if (triggerHeld)
