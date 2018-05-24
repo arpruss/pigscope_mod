@@ -865,13 +865,13 @@ void touchCalibrate() {
   // showGraticule();
   for (uint8_t screenLayout = 0 ; screenLayout < 4 ; screenLayout += 1)
   {
-    TFT.setRotation(screenLayout);
+    //TFT.setRotation(screenLayout);
     TFT.setCursor(0, 10);
     TFT.print("  Press and hold centre circle ");
     TFT.setCursor(0, 20);
     TFT.print("   to calibrate touch panel.");
   }
-  TFT.setRotation(PORTRAIT);
+  //TFT.setRotation(PORTRAIT);
   TFT.drawCircle(myHeight / 2, myWidth / 2, 20, GRATICULE_COLOUR);
   TFT.fillCircle(myHeight / 2, myWidth / 2, 10, BEAM1_COLOUR);
   //delay(5000);
