@@ -65,7 +65,7 @@ int16_t yZoomFactor = 100; //Adjusted to get 3.3V wave to fit on screen
 int16_t yPosition = 0 ;
 
 // Startup with sweep hold off or on
-boolean triggerHeld = 0 ;
+boolean triggerHeld = false;
 
 
 unsigned long sweepDelayFactor = 1;
@@ -96,16 +96,18 @@ uint16_t triggerPoints[2];
 // Serial output of samples - off by default. Toggled from UI/Serial commands.
 boolean serialOutput = false;
 
+float fps=0;
+
 // Create serial port
 class IgnorePort : public Print {
   public:
-    virtual size_t write(uint8_t c) {}
+    virtual size_t write(uint8_t c) {return 0;}
     void begin(unsigned baud) {}
 } serial_debug;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
-# define maxSamples 1024*6 //1024*6
+# define maxSamples (1024*6) //1024*6
 uint32_t startSample = 0; //10
 uint32_t endSample = maxSamples ;
 
@@ -184,6 +186,7 @@ void setup()
 
   TFT.begin();
   TFT.continuousUpdate(false);
+  TFT.toast("Pigscope");
 
   for(unsigned i=0;i<sizeof(commands)/sizeof(*commands);i++)
     TFT.addButton(commands[i].c, commands[i].label);
@@ -226,14 +229,15 @@ void setup()
   TFT.setCursor(0,10);
 }
 
+char buf[300];
+int mi=0;
 bool processMessage() {
+    TFT.text(0,10,buf,mi);
+  TFT.foreColor(0xFFFFFFFF);
   if (TFT.readMessage(&msg) && msg.what == MESSAGE_BUTTON) {
-    if (msg.data.button == 'h') {
-      digitalWrite(PB12, 0);
-      delay(100);
-      digitalWrite(PB12, 1);
-      delay(100);
-    }
+    if (mi>=30) mi=0;    
+    buf[mi++] = (char)msg.data.button;
+    TFT.text(0,10,buf,mi);
     for(unsigned i=0;i<sizeof(commands)/sizeof(*commands);i++)
       if (msg.data.button == commands[i].c) {
         commands[i].function();
@@ -245,7 +249,6 @@ bool processMessage() {
 
 void loop()
 {
-  processMessage();
 
 //  if (TFT.isTouchDown()) {
 //    TFT.drawPixel(TFT.getTouchX(), TFT.getTouchY(), BEAM2_COLOUR);
@@ -257,6 +260,7 @@ void loop()
     trigger();
     if ( !notTriggered )
     {
+      displayTime = micros();
       //blinkLED();
 
       // Take our samples
@@ -271,14 +275,17 @@ void loop()
 
       //Display the samples
       TFTSamples(BEAM1_COLOUR);
-      displayTime = (micros() - displayTime);
       
       // Display the Labels ( uS/Div, Volts/Div etc).
       showLabels();
-      displayTime = micros();
+    
+      TFT.update();
+      displayTime = (micros() - displayTime);
+      fps = 1000000/displayTime;
 
     }else {
           showGraticule();
+          TFT.update();
     }
 #ifdef SUPPORT_TIME    
     // Display the RTC time.
@@ -286,13 +293,13 @@ void loop()
 #endif    
   }
 
-  TFT.update();
-  
+  processMessage();
   // Wait before allowing a re-trigger
   if (retriggerDelay>0) 
     delay(retriggerDelay);
   // DEBUG: increment the sweepDelayFactor slowly to show the effect.
   // sweepDelayFactor ++;
+
 }
 
 void showGraticule()
@@ -557,10 +564,12 @@ void showLabels()
   TFT.print(" samples ");
 //  TFT.setCursor(10, 190);
 //  TFT.print(displayTime);
+#if 0
   if (displayTime>0) {
-    TFT.print(float (1000000 / float(displayTime)));
+    TFT.print(fps);
     TFT.print(" fps    ");
   }
+#endif  
   TFT.setTextSize(2);
   TFT.setCursor(10, 210);
   TFT.print("0.3");
@@ -606,16 +615,15 @@ void serialSamples ()
 
 void toggleHold()
 {
-  triggerHeld = !triggerHeld ;
-  //serial_debug.print("# ");
-  //serial_debug.print(triggerHeld);
   if (triggerHeld)
   {
-    serial_debug.println("# Toggle Hold on");
+    triggerHeld = false;
+    serial_debug.println("# Toggle Hold off");
   }
   else
   {
-    serial_debug.println("# Toggle Hold off");
+    triggerHeld = true;
+    serial_debug.println("# Toggle Hold on");
   }
 }
 
