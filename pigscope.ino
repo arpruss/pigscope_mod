@@ -59,7 +59,7 @@ float displayTime = 0;
 uint16_t signalX ;
 uint16_t signalY ;
 uint16_t signalY1;
-int16_t xZoomFactor = 1;
+//int16_t xZoomFactor = 1;
 // yZoomFactor (percentage)
 int16_t yZoomFactor = 100; //Adjusted to get 3.3V wave to fit on screen
 int16_t yPosition = 0 ;
@@ -117,7 +117,7 @@ uint32_t dataPoints32[maxSamples / 2];
 uint16_t *dataPoints = (uint16_t *)&dataPoints32;
 
 //array for computed data (speedup)
-uint16_t dataPlot[320]; //max(width,height) for this display
+//uint16_t dataPlot[320]; //max(width,height) for this display
 
 
 // End of DMA indication
@@ -151,8 +151,8 @@ struct {
   { 'T', "T+", increaseTimebase },                // increase Timebase by 10x
   { 'z', "Zoom-", decreaseZoomFactor },               // decrease Zoom
   { 'Z', "Zoom+", increaseZoomFactor },              // increase Zoom
-  { 'r', ">>", scrollRight },                      // start onscreen trace further right
-  { 'l', "<<", scrollLeft },                      // start onscreen trae further left
+//  { 'r', ">>", scrollRight },                      // start onscreen trace further right
+//  { 'l', "<<", scrollLeft },                      // start onscreen trae further left
   { 'e', "Edge", incEdgeType },                     // increment the trigger edge type 0 1 2 3 0 1 2 3 etc
   { 'y', "Y-", decreaseYposition },               // move trace Down
   { 'Y', "Y+", increaseYposition },               // move trace Up
@@ -229,15 +229,8 @@ void setup()
   TFT.setCursor(0,10);
 }
 
-char buf[300];
-int mi=0;
 bool processMessage() {
-    TFT.text(0,10,buf,mi);
-  TFT.foreColor(0xFFFFFFFF);
   if (TFT.readMessage(&msg) && msg.what == MESSAGE_BUTTON) {
-    if (mi>=30) mi=0;    
-    buf[mi++] = (char)msg.data.button;
-    TFT.text(0,10,buf,mi);
     for(unsigned i=0;i<sizeof(commands)/sizeof(*commands);i++)
       if (msg.data.button == commands[i].c) {
         commands[i].function();
@@ -254,6 +247,7 @@ void loop()
 //    TFT.drawPixel(TFT.getTouchX(), TFT.getTouchY(), BEAM2_COLOUR);
 //  }
 
+  samplingTime = 0;
   if ( !triggerHeld  )
   {
     // Wait for trigger
@@ -281,7 +275,7 @@ void loop()
     
       TFT.update();
       displayTime = (micros() - displayTime);
-      fps = 1000000/displayTime;
+      fps = 1000000./(displayTime+samplingTime);
 
     }else {
           showGraticule();
@@ -486,16 +480,15 @@ void takeSamples ()
 
 }
 
+#if 0  
 void TFTSamplesClear (uint16_t beamColour)
 {
   TFT.thickness(65536*2);
-#if 0  
   for (signalX=1 ; signalX < myHeight - 2; signalX++)
   {
     //use saved data to improve speed
     TFT.drawLine (  signalX, dataPlot[signalX-1], signalX + 1, dataPlot[signalX] , beamColour) ;
   } 
-#endif 
   
   TFT.foreColor565(beamColour);
   TFT.startPolyLine(myHeight-2); 
@@ -507,13 +500,14 @@ void TFTSamplesClear (uint16_t beamColour)
 
   TFT.thickness(65536);
 }
+#endif 
 
 
 void TFTSamples (uint16_t beamColour)
 {
   //calculate first sample
 #if 0
-  signalY =  ((myHeight * dataPoints[0 * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100) + yPosition;
+  signalY =  ((myHeight * dataPoints[0 * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100.) + yPosition;
   dataPlot[0]=signalY * 99 / 100 + 1;
   
   for (signalX=1 ; signalX < myHeight - 2; signalX++)
@@ -533,9 +527,9 @@ void TFTSamples (uint16_t beamColour)
   {
     // Scale our samples to fit our screen. Most scopes increase this in steps of 5,10,25,50,100 250,500,1000 etc
     // Pick the nearest suitable samples for each of our myWidth screen resolution points
-    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100) + yPosition ;
-    dataPlot[signalX] = signalY1 * 99 / 100 + 1;
-    TFT.addPolyLine(signalX+1, dataPlot[signalX]) ;
+    signalY1 = (((myWidth * dataPoints[(signalX + 1) * ((endSample - startSample) / (myHeight * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) + yPosition -myWidth/2)*yZoomFactor/100.+myWidth/2;
+    uint16_t y = signalY1 * 99 / 100 + 1; // //dataPlot[signalX]
+    TFT.addPolyLine(signalX+1, y) ; //dataPlot[signalX]
   } 
 }
 
@@ -674,23 +668,19 @@ void increaseTimebase() {
 
 void increaseZoomFactor() {
   clearTrace();
-  if ( xZoomFactor < 21) {
-    xZoomFactor += 1;
+  if ( yZoomFactor < 800) {
+    yZoomFactor *= 2;
   }
   showTrace();
-  serial_debug.print("# Zoom=");
-  serial_debug.println(xZoomFactor);
 
 }
 
 void decreaseZoomFactor() {
   clearTrace();
-  if (xZoomFactor > 1) {
-    xZoomFactor -= 1;
+  if (yZoomFactor > 25) {
+    yZoomFactor /= 2;
   }
   showTrace();
-  Serial.print("# Zoom=");
-  Serial.println(xZoomFactor);
   //clearTFT();
 }
 
