@@ -87,7 +87,7 @@ boolean notTriggered ;
 int32_t triggerValue = 2048; 
 
 int16_t retriggerDelay = 0;
-int8_t triggerType = 3; //0-both 1-negative 2-positive 3-continuous
+int8_t triggerType = 4; //1-both 2-negative 3-positive 4-continuous
 
 //Array for trigger points
 uint16_t triggerPoints[2];
@@ -421,9 +421,9 @@ void triggerNegative() {
 
 void incEdgeType() {
   triggerType += 1;
-  if (triggerType > 3)
+  if (triggerType > 4)
   {
-    triggerType = 0;
+    triggerType = 1;
   }
   /*
   serial_debug.println(triggerPoints[0]);
