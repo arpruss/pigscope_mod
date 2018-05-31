@@ -34,7 +34,7 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 
 #define TEST_WAVE_PIN       PB1     //PB1 PWM 500 Hz 
 
-#define TFT SerialDisplay
+SerialDisplayClass TFT;
 VectorDisplayMessage msg;
 
 // LED - blinks on trigger events - leave this undefined if your board has no controllable LED
